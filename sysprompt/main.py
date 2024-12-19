@@ -22,8 +22,8 @@ class SysPrompt:
     """
 
     BASE_URL: str = "https://api.sysprompt.com"
-    PROMPT_RETRIEVAL_PATH: str = "sdk/prompts/{code_id}"
-    PROMPT_LOGGING_PATH: str = "sdk/logs/prompt"
+    PROMPT_RETRIEVAL_PATH: str = "sdk/prompts/{code_id}/"
+    PROMPT_LOGGING_PATH: str = "sdk/logs/prompt/"
     API_VERSION: str = "v1"
 
     def __init__(self, api_key: Optional[str], raise_on_error: bool = False, default_cache_ttl: int = 900):
@@ -71,36 +71,37 @@ class SysPrompt:
         """
         prompts: List[dict] = []
         if code_ids is None:
-            prompts = list(self._api_request('GET', 'sdk/prompts'))
+            prompts = list(self._api_request('GET', 'sdk/prompts/'))
         else:
-            prompts = list(self._api_request('POST', 'sdk/prompts', {'code_ids': code_ids}))
+            prompts = list(self._api_request('POST', 'sdk/prompts/', {'code_ids': code_ids}))
 
         for prompt in prompts:
-            self._prompts_cache.set(prompt['code_id'], prompt)
+            self._prompts_cache.set(prompt['code_id'], None, prompt)
 
-    def get_prompt(self, code_id: str) -> str | dict | list:
+    def get_prompt(self, code_id: str, version: Optional[str] = None) -> str | dict | list:
         """
         Retrieve a prompt from the SysPrompt API.
 
         Args:
             code_id (str): The unique identifier for the prompt.
-
+            version (Optional[str]): The version of the prompt to retrieve, empty for the default version.
         Returns:
             str | dict | list: The prompt data.
 
         Raises:
             SysPromptException: If the API request fails.
         """
-        cached_prompt = self._prompts_cache.get(code_id)
+        cached_prompt = self._prompts_cache.get(code_id, version)
         if cached_prompt is not None:
             return cached_prompt.get('content', [])
 
         try:
             if not code_id:
                 raise SysPromptException("Prompt code ID is required. Got empty string.")
-            prompt = self._api_request('GET', self.PROMPT_RETRIEVAL_PATH.format(code_id=code_id))
+            version_string = f"?version={version}" if version else ""
+            prompt = self._api_request('GET', f"{self.PROMPT_RETRIEVAL_PATH.format(code_id=code_id)}{version_string}")
             if prompt:
-                self._prompts_cache.set(code_id, prompt)
+                self._prompts_cache.set(code_id, version, prompt)
             return prompt.get('content', [])
         except Exception as e:
             if self._raise_on_error:
@@ -113,21 +114,23 @@ class SysPrompt:
         self,
         prompt_id: str | None = None,
         params: dict = {},
-        prompt_object: None | str | dict | list = None
+        version: Optional[str] = None,
+        prompt_object: None | str | dict | list = None,
     ) -> str | dict | list:
         """
         Compile a prompt with the given parameters.
         You can either provide a prompt code ID or a prompt object.
 
         Args:
+            prompt_id (str): The unique identifier for the prompt.
             params (dict): The parameters to substitute into the prompt.
-            prompt_code_id (str): The unique identifier for the prompt.
+            version (str): The version of the prompt to retrieve, empty for the default version.
             prompt_object (str | dict | list): The prompt object to compile.
         Returns:
             str | dict | list: The compiled prompt.
         """
 
-        prompt: str | dict | list | None = self.get_prompt(prompt_id) if prompt_id else prompt_object
+        prompt: str | dict | list | None = self.get_prompt(prompt_id, version) if prompt_id else prompt_object
         if not prompt:
             if self._raise_on_error:
                 raise SysPromptException("Prompt not found")
@@ -316,6 +319,7 @@ class SysPrompt:
         for attempt in range(max_retries):
             try:
                 url: str = self._get_url(path)
+                print(url)
                 response: requests.Response = requests.request(method, url, json=data, headers=self._get_headers())
                 response.raise_for_status()
                 return response.json()
@@ -375,7 +379,7 @@ class SysPrompt:
         Returns:
             str: The full URL.
         """
-        return f"{self.BASE_URL}/{self.API_VERSION}/{path}/"
+        return f"{self.BASE_URL}/{self.API_VERSION}/{path}"
 
     def _get_headers(self) -> dict:
         """

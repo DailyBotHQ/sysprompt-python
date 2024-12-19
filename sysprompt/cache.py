@@ -17,40 +17,43 @@ class PromptCache:
         self._expiration: dict = {}
         self._default_ttl: int = default_ttl
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str, version: Optional[str] = None) -> Optional[Any]:
         """
         Get a prompt from the cache.
         """
+        cache_key = self._calculate_key(key, version)
         if self._default_ttl == 0:
             return None  # Cache is disabled
-        if key in self._cache:
-            if self._is_expired(key):
-                self.delete(key)
+        if cache_key in self._cache:
+            if self._is_expired(cache_key):
+                self.delete(cache_key)
                 return None
-            self._cache.move_to_end(key)
-            return self._cache[key]
+            self._cache.move_to_end(cache_key)
+            return self._cache[cache_key]
         return None
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None):
+    def set(self, key: str, version: Optional[str] = None, value: Any = None, ttl: Optional[int] = None):
         """
         Set a prompt in the cache.
         """
         ttl = ttl if ttl is not None else self._default_ttl
+        cache_key = self._calculate_key(key, version)
         if ttl == 0:
             return  # Don't cache if TTL is 0
-        if key in self._cache:
-            del self._cache[key]
-        self._cache[key] = value
-        self._expiration[key] = time.time() + (ttl or self._default_ttl)
-        self._cache.move_to_end(key)
+        if cache_key in self._cache:
+            del self._cache[cache_key]
+        self._cache[cache_key] = value
+        self._expiration[cache_key] = time.time() + (ttl or self._default_ttl)
+        self._cache.move_to_end(cache_key)
 
-    def delete(self, key: str):
+    def delete(self, key: str, version: Optional[str] = None):
         """
         Delete a prompt from the cache.
         """
-        if key in self._cache:
-            del self._cache[key]
-            del self._expiration[key]
+        cache_key = self._calculate_key(key, version)
+        if cache_key in self._cache:
+            del self._cache[cache_key]
+            del self._expiration[cache_key]
 
     def clear(self):
         """
@@ -70,6 +73,9 @@ class PromptCache:
         Set the default TTL for prompts.
         """
         self._default_ttl = ttl
+
+    def _calculate_key(self, key: str, version: Optional[str] = None) -> str:
+        return f"{key}:{version}" if version else key
 
     def __len__(self):
         """
