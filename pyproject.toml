@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sysprompt"
-version = "0.1.2"
+version = "0.1.3"
 description = "Official Python SDK for managing and consuming LLM prompts hosted on SysPrompt"
 authors = [
     { name = "SysPrompt (powered by DailyBot)", email = "sdk@sysprompt.com" },
